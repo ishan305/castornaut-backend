@@ -1,0 +1,60 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/podcast.schema.json",
+    "title": "Podcast",
+    "description": "A podcast",
+    "type": "object",
+    "properties": {
+        "podcast_id" : {
+            "description" : "The unique identifier for a product",
+            "type" : "integer"
+        },
+        "url" : {
+            "description" : "URL for the podcast's RSS feed",
+            "type" : "string"
+        },
+        "title" : {
+            "description" : "Title of the podcast",
+            "type" : "string"
+        },
+        "description" : {
+            "description" : "Description of the podcast",
+            "type" : "string"
+        },
+        "author" : {
+            "description": "Name of the author",
+            "type": "string"
+        },
+        "image_url" : {
+            "description": "URL to the image",
+            "type": "string"
+        },
+        "artwork_url" : {
+            "description": "URL to the artwork",
+            "type": "string"
+        },
+        "newest_item_publish_time" : {
+            "description": "Date of the latest published item",
+            "type": "string"
+        },
+        "itunes_id" : {
+            "description": "ID of the podcast on iTunes",
+            "type": "integer"
+        },
+        "trend_score" : {
+            "description": "Trend score of the podcast",
+            "type": "integer"
+        },
+        "language" : {
+            "description": "Language of the podcast",
+            "type": "string"
+        },
+        "categories" : {
+            "description": "Categories of the podcast",
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        }   
+    }
+}
