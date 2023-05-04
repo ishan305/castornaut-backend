@@ -1,0 +1,16 @@
+version: '3.7'
+
+services:
+  castornaut:
+    build: ./src/app
+    command: gunicorn --bind 0.0.0.0:5000 server:server
+    expose:
+      - 5000
+    env_file:
+      - ./.env.dev
+  nginx:
+    build: ./src/nginx
+    ports:
+      - 1337:80
+    depends_on:
+      - castornaut

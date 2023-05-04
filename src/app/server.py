@@ -6,17 +6,55 @@ import json;
 import threading;
 import pymongo;
 import json;
+import logging;
 from bson import json_util;
 from typing import Callable;
+from logging.handlers import RotatingFileHandler;
+from logging.config import dictConfig;
+import logtail;
 
-app = Flask(__name__)
+dictConfig({
+    'version': 1,
+    'formatters': {
+        'default': {
+            'format': '[%(asctime)s] %(levelname)s in %(module)s: %(message)s',
+        }
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'stream': 'ext://sys.stdout',
+            'formatter': 'default'
+        },
+        'size-rotate': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': './logs/castornaut.log',
+            'maxBytes': 100,
+            'backupCount': 5,
+            'formatter': 'default',
+        },
+        'logtail' :{
+            'class': 'logtail.LogtailHandler',
+            'source_token': '5N8MPSvo6UG87HxmnzKHrEH7',
+            'formatter': 'default',
+        }
+    },
+    'root': {
+        'level': 'DEBUG',
+        'handlers': ['console', 'size-rotate', 'logtail']
+    }
+});
 
-@app.route('/')
+server = Flask(__name__);
+logger = server.logger;
+
+@server.route('/')
 def hello() -> str:
     return 'You\'ve reached castornaut';
 
 
-@app.route('/podcasts/trending', methods=['GET'])
+#TODO: Create interfaces fro different sources: spotify, apple, etc https://www.scaler.com/topics/interface-in-python/
+@server.route('/podcasts/trending', methods=['GET'])
 def get_trending_podcasts() -> str:
     start_index: int = int(request.args.get('startIndex'));
     end_index: int = int(request.args.get('endIndex'));
@@ -30,14 +68,14 @@ def get_trending_podcasts() -> str:
         
         #check if we have enough data cache to return
         if collection_trending_podcasts.count_documents({}) > end_index:
-            print ('<< Returning Cached >>')
+            logger.log(logging.INFO,'<< Returning Cached >>');
             cachedPodcasts: list = [];
             for x in collection_trending_podcasts.find().skip(start_index).limit(end_index - start_index):
                 cachedPodcasts.append(json.loads(json_util.dumps(x)));
             return cachedPodcasts;
         #if it doesn't, make an 3rd party api call to get the data and cache it
         else:
-            print ('<< Making API Call >>')
+            logger.log(logging.INFO,'<< Making API Call >>');
             podcastsFromApi: str = get_podcasts_from_api(mongo_client, start_index, end_index);
             deserialized_podcasts: list = json.loads(podcastsFromApi);
             
@@ -57,10 +95,10 @@ def get_podcasts_from_api(mongo_client: pymongo.MongoClient, startindex: int, en
         headers=create_request_header());
     
     if response.status == 200:
-        print ('<< Received date>>')
+        logger.log(logging.INFO,'<< Received date>>')
         return response.data;
     else:
-        print ('<< Received error ' + str(response.status) + '>>')
+        logger.log(logging.INFO,'<< Received error ' + str(response.status) + '>>')
         return Exception('Error: ' + str(response.status));
 
 
@@ -93,10 +131,10 @@ def start_thread(func : Callable[..., None], name : str =None, args: list = []):
 def cache_podcasts(mongo_collection: pymongo.collection, json_podcasts: list):
     # save and update the trending podcasts
     # upsert being true leads to the intended update or insert behavior.
-    print(f'<< Caching {len(json_podcasts)} podcasts >>');
+    logger.log(logging.INFO, f'<< Caching {len(json_podcasts)} podcasts >>');
     for podcast in json_podcasts:
         mongo_collection.update_one({'id': podcast['id']}, {'$set': podcast}, upsert=True);
 
-# Run the app
+# Run the server
 if __name__ == "__main__":
-    app.run(debug=True, port=5000);
+    server.run(debug=True, port=5000);
