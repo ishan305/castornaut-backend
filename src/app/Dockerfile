@@ -5,7 +5,7 @@ RUN pip install -r requirements.txt
 COPY . /app
 
 # Expose the server port
-EXPOSE 5000
+EXPOSE 7474
 
 # Calculate the number of worker processes based on the number of CPU cores
-CMD ["gunicorn","--bind","0.0.0.0:5000","--workers","4","wsgi:server"]
+CMD ["gunicorn","--bind","0.0.0.0:7474","--workers","4","wsgi:server"]
