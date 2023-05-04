@@ -28,7 +28,7 @@ dictConfig({
         },
         'size-rotate': {
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': '../../logs/castornaut.log',
+            'filename': './castornaut.log',
             'maxBytes': 100,
             'backupCount': 5,
             'formatter': 'default',
