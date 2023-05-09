@@ -45,9 +45,28 @@ dictConfig({
     }
 });
 
+# Initialize the Flask application
 server = Flask(__name__);
 logger = server.logger;
 
+# Initialize the MongoDB client
+def initialize_mongo_client() -> pymongo.MongoClient:
+    #connect to the mongo db
+    return pymongo.MongoClient("mongodb+srv://castornautadmin:Castornaut2023@cluster0.okufuf1.mongodb.net/?retryWrites=true&w=majority");
+
+# Send a ping to confirm a successful connection
+mongo_client : pymongo.client = initialize_mongo_client();
+try:
+    mongo_client.admin.command('ping');
+    logger.log(logging.INFO, "Pinged your deployment. You successfully connected to MongoDB!");
+    db = mongo_client['castornaut'];
+    table_podcasts = db['podcasts'];
+    
+except Exception as e:
+    logger.log(logging.CRITICAL, "Unable to connect to MongoDB. Check your connection details.");
+
+
+# Server Routes
 @server.route('/')
 def hello() -> str:
     return 'You\'ve reached castornaut';
@@ -61,9 +80,6 @@ def get_trending_podcasts() -> str:
     
     #get podcast collection from mongoDB
     try :
-        mongo_client : pymongo.client = initialize_mongo_client();
-        db = mongo_client['castornaut'];
-        table_podcasts = db['podcasts'];
         collection_trending_podcasts = table_podcasts['trending'];
         
         #check if we have enough data cache to return
@@ -75,24 +91,45 @@ def get_trending_podcasts() -> str:
             return cachedPodcasts;
         #if it doesn't, make an 3rd party api call to get the data and cache it
         else:
-            logger.log(logging.INFO,'<< Making API Call >>');
-            podcastsFromApi: str = get_podcasts_from_api(mongo_client, start_index, end_index);
+            logger.log(logging.INFO,'<< Making API Call FOR TRENDING PODCASTS>>');
+            podcastsFromApi: str = get_trending_podcasts_from_api(start_index, end_index);
             deserialized_podcasts: list = json.loads(podcastsFromApi);
             
             # start a thread to cache the podcasts
-            start_thread(cache_podcasts, 'cache_podcasts', [collection_trending_podcasts, deserialized_podcasts['feeds']]);
+            start_thread(cache_podcasts, 'cache_trending_podcasts', [collection_trending_podcasts, deserialized_podcasts['feeds']]);
+            start_thread(cache_podcasts, 'cache_search_podcasts', [table_podcasts['all'], deserialized_podcasts['feeds']]);
             return deserialized_podcasts['feeds'];
     except Exception as e: 
         return 'Exception occured: ' + str(e);
 
 
-def get_podcasts_from_api(mongo_client: pymongo.MongoClient, startindex: int, endindex: int) -> str:
-    http = urllib3.PoolManager();
-    response = http.request(
+#TODO: Once corpus is big enough use atlas search or elastisearch for search, fuzzymatchng vector based search
+@server.route('/podcasts/search', methods=['GET'])
+def search_podcasts() -> str:
+    search_term: str = request.args.get('searchTerm');
+    try:
+        logger.log(logging.INFO,'<< Making API Call FOR PODCAST SEARCH>>');
+        podcastsFromApi: str = search_podcast_from_api(search_term);
+        deserialized_podcasts: list = json.loads(podcastsFromApi);
+        
+        # start a thread to cache the podcasts
+        start_thread(cache_podcasts, 'cache_search_podcasts', [table_podcasts['all'], deserialized_podcasts['feeds']]);
+        return deserialized_podcasts['feeds'];
+    except Exception as e: 
+        return 'Exception occured: ' + str(e);
+
+
+def search_podcast_from_api(searchterm: str) -> str:
+    return make_and_handle_http_request(
         'GET', 
-        'https://api.podcastindex.org/api/1.0/podcasts/trending', 
-        fields={'max': f'{endindex}'}, 
+        'https://api.podcastindex.org/api/1.0/search/byterm',
+        fields={'q': f'{searchterm}'}, 
         headers=create_request_header());
+
+
+def make_and_handle_http_request(url: str, method: str, fields: dict, headers: dict) -> str:
+    http = urllib3.PoolManager();
+    response = http.request(method, url, fields=fields, headers=headers);
     
     if response.status == 200:
         logger.log(logging.INFO,'<< Received date>>')
@@ -102,9 +139,12 @@ def get_podcasts_from_api(mongo_client: pymongo.MongoClient, startindex: int, en
         return Exception('Error: ' + str(response.status));
 
 
-def initialize_mongo_client() -> pymongo.MongoClient:
-    #connect to the mongo db
-    return pymongo.MongoClient("mongodb+srv://castornautadmin:Castornaut2023@cluster0.okufuf1.mongodb.net/?retryWrites=true&w=majority");
+def get_trending_podcasts_from_api(startindex: int, endindex: int) -> str:
+    return make_and_handle_http_request(
+        'GET', 
+        'https://api.podcastindex.org/api/1.0/podcasts/trending', 
+        fields={'max': f'{endindex}'}, 
+        headers=create_request_header());
 
 
 def create_request_header() -> dict:
